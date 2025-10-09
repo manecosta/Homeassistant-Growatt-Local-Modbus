@@ -67,6 +67,7 @@ DEVICETYPES_OPTION = [
     selector.SelectOptionDict(value=DeviceTypes.HYBRID_120_TL_XH, label="RTU 2 - Hybrid TL-X(H) (MIN Type)"),
     selector.SelectOptionDict(value=DeviceTypes.INVERTER_315, label="RTU - Inverter (Older regeneration) v3.15"),
     selector.SelectOptionDict(value=DeviceTypes.OFFGRID_SPF, label="SPF - Offgrid/Hybrid"),
+    selector.SelectOptionDict(value=DeviceTypes.SPH_10000_CUSTOM, label="SPH 10000 Custom (with serial reset workaround)"),
 ]
 
 _LOGGER = logging.getLogger(__name__)

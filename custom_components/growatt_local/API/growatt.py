@@ -2,6 +2,7 @@
 Python wrapper for getting data asynchronously from Growatt inverters
 via serial usb RS232 connection and modbus RTU protocol.
 """
+import asyncio
 import json
 import logging
 import os
@@ -231,6 +232,13 @@ class GrowattSerial(GrowattModbusBase):
                 _LOGGER.debug("Port %s is not available", port)
                 raise ModbusPortException(f"USB port {port} is not available")
 
+        self.port = port
+        self.baudrate = baudrate
+        self.stopbits = stopbits
+        self.parity = parity
+        self.bytesize = bytesize
+        self.timeout = timeout
+
         self.client = AsyncModbusSerialClient(
             port=port,
             framer=FramerType.RTU,
@@ -240,6 +248,51 @@ class GrowattSerial(GrowattModbusBase):
             bytesize=bytesize,
             timeout=timeout,
         )
+
+    async def reset_serial_port(self) -> None:
+        """Reset serial port by attempting a 9600 baud read (workaround for SPH 10000)."""
+        try:
+            _LOGGER.info("Attempting serial port reset with 9600 baud read")
+            # Close current connection
+            self.client.close()
+
+            # Create temporary 9600 baud client with 1 second timeout
+            temp_client = AsyncModbusSerialClient(
+                port=self.port,
+                framer=FramerType.RTU,
+                baudrate=9600,
+                stopbits=self.stopbits,
+                parity=self.parity[:1],
+                bytesize=self.bytesize,
+                timeout=1,
+            )
+
+            # Connect and attempt a quick read
+            await temp_client.connect()
+            try:
+                # Attempt to read a single register (will likely timeout/fail, but that's ok)
+                await asyncio.wait_for(temp_client.read_input_registers(0, count=1, device_id=1), timeout=1)
+            except (asyncio.TimeoutError, Exception):
+                # Expected to fail, this is just to "wake up" the device
+                pass
+            finally:
+                temp_client.close()
+
+            # Reconnect with the original baudrate
+            self.client = AsyncModbusSerialClient(
+                port=self.port,
+                framer=FramerType.RTU,
+                baudrate=self.baudrate,
+                stopbits=self.stopbits,
+                parity=self.parity[:1],
+                bytesize=self.bytesize,
+                timeout=self.timeout,
+            )
+            await self.client.connect()
+            _LOGGER.info("Serial port reset completed, reconnected with original baudrate")
+        except Exception as e:
+            _LOGGER.error(f"Error during serial port reset: {e}", exc_info=True)
+            raise
 
 
 class GrowattDevice:
@@ -301,6 +354,26 @@ class GrowattDevice:
         else:
             key_sequences = self._input_cache[key_hash]
 
+        # For SPH 10000 Custom, wrap the update logic with timeout detection and reset
+        if self.device == DeviceTypes.SPH_10000_CUSTOM and isinstance(self.modbus, GrowattSerial):
+            try:
+                return await self._update_with_timeout_protection(key_sequences)
+            except (asyncio.TimeoutError, Exception) as e:
+                # If we get a timeout, try to reset the serial port
+                _LOGGER.warning(f"Timeout detected for SPH 10000 Custom, attempting serial port reset: {e}")
+                try:
+                    await self.modbus.reset_serial_port()
+                    # Retry the update after reset
+                    return await self._update_with_timeout_protection(key_sequences)
+                except Exception as reset_error:
+                    _LOGGER.error(f"Failed to reset serial port or retry update: {reset_error}")
+                    raise
+        else:
+            # Standard update logic for other devices
+            return await self._update_with_timeout_protection(key_sequences)
+
+    async def _update_with_timeout_protection(self, key_sequences) -> dict[str, Any]:
+        """Internal method to perform the actual register reads."""
         results = {}
 
         if key_sequences.holding:
@@ -414,7 +487,7 @@ def get_register_information(GrowattDeviceType: DeviceTypes) -> DeviceRegisters:
         input_register = {
             obj.register: obj for obj in INPUT_REGISTERS_120
         }
-    elif GrowattDeviceType == DeviceTypes.HYBRID_120:
+    elif GrowattDeviceType in (DeviceTypes.HYBRID_120, DeviceTypes.SPH_10000_CUSTOM):
         max_length = MAXIMUM_DATA_LENGTH_120
         holding_register = {
             obj.register: obj for obj in STORAGE_HOLDING_REGISTERS_120
@@ -455,8 +528,8 @@ async def get_device_info(device: GrowattModbusBase, unit: int, fixed_device_typ
     minimal_length = min((MAXIMUM_DATA_LENGTH_120, MAXIMUM_DATA_LENGTH_315))
 
     if fixed_device_types is not None:
-        if fixed_device_types in (DeviceTypes.INVERTER_120, DeviceTypes.HYBRID_120, 
-                                  DeviceTypes.HYBRID_120_TL_XH, DeviceTypes.STORAGE_120):
+        if fixed_device_types in (DeviceTypes.INVERTER_120, DeviceTypes.HYBRID_120,
+                                  DeviceTypes.HYBRID_120_TL_XH, DeviceTypes.STORAGE_120, DeviceTypes.SPH_10000_CUSTOM):
             return await device.get_device_info(HOLDING_REGISTERS_120, minimal_length, unit)
         elif fixed_device_types in (DeviceTypes.INVERTER_315, DeviceTypes.OFFGRID_SPF):
             return await device.get_device_info(HOLDING_REGISTERS_315, minimal_length, unit)

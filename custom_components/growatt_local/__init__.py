@@ -64,12 +64,15 @@ async def async_setup_entry(
     """Load the saved entities."""
 
     if entry.data[CONF_LAYER] == CONF_SERIAL:
+        # Use 1 second timeout for SPH 10000 Custom for faster failure detection
+        timeout = 1 if entry.data[CONF_TYPE] == DeviceTypes.SPH_10000_CUSTOM.value else 3
         device_layer = GrowattSerial(
             entry.data[CONF_SERIAL_PORT],
             entry.data[CONF_BAUDRATE],
             entry.data[CONF_STOPBITS],
             entry.data[CONF_PARITY],
             entry.data[CONF_BYTESIZE],
+            timeout=timeout,
         )
     elif entry.data[CONF_LAYER] in (CONF_TCP, CONF_UDP):
         device_layer = GrowattNetwork(
@@ -229,7 +232,7 @@ class GrowattLocalCoordinator(DataUpdateCoordinator):
             self._counter = self._max_counter = 0
 
         # Storage/Hybride devices are always active while inverters are only active when the sun is up.
-        if self.growatt_api.device not in (DeviceTypes.HYBRID_120, DeviceTypes.HYBRID_120_TL_XH, DeviceTypes.OFFGRID_SPF):
+        if self.growatt_api.device not in (DeviceTypes.HYBRID_120, DeviceTypes.HYBRID_120_TL_XH, DeviceTypes.OFFGRID_SPF, DeviceTypes.SPH_10000_CUSTOM):
             self._sun_is_down = self.sun_down()
 
             async_track_sunrise(self.hass, self.sunrise)
