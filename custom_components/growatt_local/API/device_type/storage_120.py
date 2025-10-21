@@ -117,6 +117,49 @@ STORAGE_INPUT_REGISTERS_120: tuple[GrowattDeviceRegisters, ...] = (
     ),
 )
 
+# SPH 10000 Custom uses different register addresses for power values
+STORAGE_INPUT_REGISTERS_SPH_10000_CUSTOM: tuple[GrowattDeviceRegisters, ...] = (
+    GrowattDeviceRegisters(
+        name=ATTR_SOC_PERCENTAGE, register=1014, value_type=int
+    ),
+    GrowattDeviceRegisters(
+        name=ATTR_DISCHARGE_POWER, register=1009, value_type=float, length=2
+    ),
+    GrowattDeviceRegisters(
+        name=ATTR_CHARGE_POWER, register=1011, value_type=float, length=2
+    ),
+    GrowattDeviceRegisters(
+        name=ATTR_ENERGY_TO_USER_TODAY, register=1044, value_type=float, length=2
+    ),
+    GrowattDeviceRegisters(
+        name=ATTR_ENERGY_TO_USER_TOTAL, register=1046, value_type=float, length=2
+    ),
+    GrowattDeviceRegisters(
+        name=ATTR_ENERGY_TO_GRID_TODAY, register=1048, value_type=float, length=2
+    ),
+    GrowattDeviceRegisters(
+        name=ATTR_ENERGY_TO_GRID_TOTAL, register=1050, value_type=float, length=2
+    ),
+    GrowattDeviceRegisters(
+        name=ATTR_DISCHARGE_ENERGY_TODAY, register=1052, value_type=float, length=2
+    ),
+    GrowattDeviceRegisters(
+        name=ATTR_DISCHARGE_ENERGY_TOTAL, register=1054, value_type=float, length=2
+    ),
+    GrowattDeviceRegisters(
+        name=ATTR_CHARGE_ENERGY_TODAY, register=1056, value_type=float, length=2
+    ),
+    GrowattDeviceRegisters(
+        name=ATTR_CHARGE_ENERGY_TOTAL, register=1058, value_type=float, length=2
+    ),
+    GrowattDeviceRegisters(
+        name=ATTR_PAC_TO_USER_TOTAL, register=1015, value_type=float, length=2,
+    ),
+    GrowattDeviceRegisters(
+        name=ATTR_PAC_TO_GRID_TOTAL, register=1023, value_type=float, length=2,
+    ),
+)
+
 STORAGE_INPUT_REGISTERS_120_TL_XH: tuple[GrowattDeviceRegisters, ...] = (
     GrowattDeviceRegisters(
         name=ATTR_SOC_PERCENTAGE, register=3171, value_type=int
